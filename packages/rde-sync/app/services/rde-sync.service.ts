@@ -2,7 +2,7 @@ import { AMRS_POOL, ETL_POOL } from "../db";
 import { ResponseToolkit } from "@hapi/hapi";
 import { RowDataPacket } from "mysql2";
 import { RDEQueuePayload } from "../models/RequestParams";
-import { QueueStatus } from "../models/Model";
+import { AffectedRows, QueueStatus } from "../models/Model";
 
 class RdeSyncService {
   async getPatientIds(identifiers: string[]) {
@@ -39,14 +39,25 @@ class RdeSyncService {
 
       const connection = await ETL_POOL.getConnection();
       const [rows] = await connection.execute(query);
+      const { affectedRows } = rows as AffectedRows;
       connection.release();
-      h.response(rows).created;
+
+      return affectedRows;
     };
 
-    if (Array.isArray(rows)) {
-      rows.forEach((row: any) => {
-        return handleRow(row as RowDataPacket);
-      });
+    try {
+      if (Array.isArray(rows)) {
+        let totalRows: number = 0;
+
+        for (const row of rows) {
+          const response = await handleRow(row as RowDataPacket);
+          response ? (totalRows += response) : totalRows;
+        }
+
+        return { createdRows: totalRows };
+      }
+    } catch (err) {
+      console.error(err);
     }
   }
 
@@ -70,9 +81,10 @@ class RdeSyncService {
   async deletePatientRecord(id: string, h: ResponseToolkit) {
     const identifiers = [id];
     const [patientId] = await this.getPatientIds(identifiers);
+
     if (Array.isArray(patientId)) {
       const id = patientId[0] as { patient_id: number };
-      const query = `DELETE FROM rde_sync_queue WHERE patient_id = ${id.patient_id}`;
+      const query = `DELETE FROM rde_sync_queue WHERE patient_id = ${id?.patient_id}`;
       const connection = await ETL_POOL.getConnection();
       const [deleted] = await connection.execute(query);
       connection.release();

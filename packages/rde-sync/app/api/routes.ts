@@ -20,14 +20,12 @@ export const apiRoutes: ServerRoute[] = [
   },
   {
     method: "DELETE",
-    path: "/api/rde-sync/patient/{id}&purge=true",
+    path: "/api/rde-sync/patient/{patientId}",
     handler: async function (request, h) {
-      const id = request.params.id;
+      const id = request.params.patientId;
 
       const rdeSyncService = new RdeSyncService();
-      await rdeSyncService.deletePatientRecord(id, h);
-
-      return "deleted";
+      return await rdeSyncService.deletePatientRecord(id, h);
     },
   },
   {
@@ -60,7 +58,11 @@ export const apiRoutes: ServerRoute[] = [
     handler: async function (request, h) {
       const monthlyService = new MonthlyReportService();
 
-      const { patientIds, userId, reportingMonth } = request.payload as QueuePatientPayload;
+      const {
+        patientIds,
+        userId,
+        reportingMonth,
+      } = request.payload as QueuePatientPayload;
 
       if (
         !patientIds ||
@@ -70,11 +72,19 @@ export const apiRoutes: ServerRoute[] = [
         throw new Error("Invalid personIds provided");
       }
       try {
-        await monthlyService.queueAndProcessedPatients(patientIds, userId, reportingMonth);
+        await monthlyService.queueAndProcessedPatients(
+          patientIds,
+          userId,
+          reportingMonth
+        );
         return h.response({ message: "Processing Queued Patients" }).code(201);
       } catch (error) {
         console.error(error);
-        return h.response({ message: "Failed to Queue or Invoke Process the Queued patients" }).code(500);
+        return h
+          .response({
+            message: "Failed to Queue or Invoke Process the Queued patients",
+          })
+          .code(500);
       }
     },
     options: {
@@ -85,6 +95,18 @@ export const apiRoutes: ServerRoute[] = [
           patientIds: Joi.array().required(),
         }),
       },
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/rde-sync/queue/processing/{userId}",
+    handler: async function (request, h) {
+      const id = request.params.userId;
+
+      const rdeSyncService = new RdeSyncService();
+      const count = await rdeSyncService.processingStatus(id, h);
+
+      return count;
     },
   },
 ];
