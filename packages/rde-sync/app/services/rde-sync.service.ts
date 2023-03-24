@@ -50,9 +50,7 @@ class RdeSyncService {
     }
   }
 
-  async updatePatientStatus(
-    patientIds: number[],
-    status: QueueStatus) {
+  async updatePatientStatus(patientIds: number[], status: QueueStatus) {
     const connection = await ETL_POOL.getConnection();
     const queueStatus: string = QueueStatus[status];
     try {
@@ -79,6 +77,25 @@ class RdeSyncService {
       const [deleted] = await connection.execute(query);
       connection.release();
       return h.response(deleted).code(204);
+    }
+  }
+
+  async processingStatus(id: string, h: ResponseToolkit) {
+    let count;
+    try {
+      const query = `SELECT * FROM hiv_monthly_report_dataset_build_queue_${id}`;
+      const connection = await ETL_POOL.getConnection();
+      const [rows] = await connection.execute(query);
+      if (Array.isArray(rows)) {
+        count = rows.length;
+        connection.release();
+        const response = { totalRows: count };
+        return response;
+      }
+    } catch (err) {
+      count = 0;
+      const response = { totalRows: count };
+      return response;
     }
   }
 }

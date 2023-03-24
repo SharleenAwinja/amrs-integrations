@@ -118,3 +118,4 @@ token.txt
 
 .yarn
 *.zip
+*.yarn/cache
