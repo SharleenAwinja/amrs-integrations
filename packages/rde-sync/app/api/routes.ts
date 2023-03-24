@@ -17,6 +17,15 @@ export const apiRoutes: ServerRoute[] = [
         h
       );
     },
+    options: {
+      validate: {
+        payload: Joi.object({
+          identifiers: Joi.array().items(Joi.string()).required(),
+          userId: Joi.number().integer().required(),
+          reportingMonth: Joi.string().required(),
+        }),
+      },
+    },
   },
   {
     method: "DELETE",
@@ -26,6 +35,13 @@ export const apiRoutes: ServerRoute[] = [
 
       const rdeSyncService = new RdeSyncService();
       return await rdeSyncService.deletePatientRecord(id, h);
+    },
+    options: {
+      validate: {
+        params: Joi.object({
+          patientId: Joi.string().required(),
+        }),
+      },
     },
   },
   {
@@ -107,6 +123,13 @@ export const apiRoutes: ServerRoute[] = [
       const count = await rdeSyncService.processingStatus(id, h);
 
       return count;
+    },
+    options: {
+      validate: {
+        params: Joi.object({
+          userId: Joi.number().integer().required(),
+        }),
+      },
     },
   },
 ];
