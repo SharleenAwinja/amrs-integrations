@@ -109,4 +109,15 @@ export const apiRoutes: ServerRoute[] = [
       return count;
     },
   },
+  {
+    method: "POST",
+    path: "/api/rde-sync/freeze",
+    handler: async function (request, h) {
+      const rdeSyncService = new RdeSyncService();
+
+      return await rdeSyncService.freezingData(
+        request.payload as QueuePatientPayload
+      );
+    },
+  },
 ];

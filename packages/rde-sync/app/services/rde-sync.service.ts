@@ -1,7 +1,7 @@
 import { AMRS_POOL, ETL_POOL } from "../db";
 import { ResponseToolkit } from "@hapi/hapi";
 import { RowDataPacket } from "mysql2";
-import { RDEQueuePayload } from "../models/RequestParams";
+import { QueuePatientPayload, RDEQueuePayload } from "../models/RequestParams";
 import { AffectedRows, QueueStatus } from "../models/Model";
 
 class RdeSyncService {
@@ -109,6 +109,29 @@ class RdeSyncService {
       const response = { totalRows: count };
       return response;
     }
+  }
+
+  async freezingData(request: QueuePatientPayload) {
+    const { patientIds, userId, reportingMonth } = request;
+
+    console.log("identifiers", patientIds);
+
+    let whereQuery = "";
+    patientIds.forEach((id) => {
+      whereQuery += `'${id}',`;
+    });
+
+    const query = `REPLACE INTO etl.hiv_monthly_report_dataset_frozen (SELECT * from etl.hiv_monthly_report_dataset_v1_2
+          WHERE hiv_monthly_report_dataset_v1_2.endDate = ${reportingMonth} AND hiv_monthly_report_dataset_v1_2.person_id
+          IN (${whereQuery.slice(0, -1)});`;
+
+    const connection = await ETL_POOL.getConnection();
+    const [rows] = await connection.execute(query);
+    console.log("rows", rows);
+
+    connection.release();
+
+    return rows;
   }
 }
 
