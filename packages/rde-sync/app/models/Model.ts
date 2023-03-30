@@ -17,3 +17,7 @@ export enum QueueStatus {
 export interface AffectedRows {
   affectedRows: number;
 }
+
+export interface PatientIds {
+  patientIds: string[];
+}
