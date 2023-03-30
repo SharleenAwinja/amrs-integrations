@@ -47,7 +47,7 @@ class HIVSummaryService {
         l.name as location_name,
         fh.date_created,
         fh.rtc_date,
-        fh.encounter_datetime,
+        fh.encounter_datetime as latest_encounter_datetime,
         fh.person_id
     FROM
         etl.flat_hiv_summary_sync_queue hs
@@ -60,8 +60,7 @@ class HIVSummaryService {
             INNER JOIN
         amrs_migration.person_name pn ON p.person_id = pn.person_id
     GROUP BY fh.person_id
-    ORDER BY fh.encounter_datetime DESC
-    LIMIT 1`;
+    ORDER BY fh.encounter_datetime DESC;`;
       const connection = await ETL_POOL.getConnection();
       const [rows] = await connection.execute(query);
       return h.response(rows).code(201);
