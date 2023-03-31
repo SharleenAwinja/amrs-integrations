@@ -2,7 +2,7 @@ import { AMRS_POOL, ETL_POOL } from "../db";
 import { ResponseToolkit } from "@hapi/hapi";
 import { RowDataPacket } from "mysql2";
 import { QueuePatientPayload, RDEQueuePayload } from "../models/RequestParams";
-import { QueueStatus } from "../models/Model";
+import { AffectedRows, QueueStatus } from "../models/Model";
 
 class RdeSyncService {
   async getPatientIds(identifiers: string[]) {
@@ -39,20 +39,30 @@ class RdeSyncService {
 
       const connection = await ETL_POOL.getConnection();
       const [rows] = await connection.execute(query);
+      const { affectedRows } = rows as AffectedRows;
       connection.release();
-      h.response(rows).created;
+      return affectedRows;
     };
 
-    if (Array.isArray(rows)) {
-      rows.forEach((row: any) => {
-        return handleRow(row as RowDataPacket);
-      });
+    try {
+      if (Array.isArray(rows)) {
+        let totalRows: number = 0;
+
+        for (const row of rows) {
+          const response = await handleRow(row as RowDataPacket);
+          response ? (totalRows += response) : totalRows;
+        }
+
+        return h
+          .response({ affectedRows: totalRows } as AffectedRows)
+          .code(201);
+      }
+    } catch (error) {
+      return h.response(`Internal server error ${error}`).code(500);
     }
   }
 
-  async updatePatientStatus(
-    patientIds: number[],
-    status: QueueStatus) {
+  async updatePatientStatus(patientIds: number[], status: QueueStatus) {
     const connection = await ETL_POOL.getConnection();
     const queueStatus: string = QueueStatus[status];
     try {
