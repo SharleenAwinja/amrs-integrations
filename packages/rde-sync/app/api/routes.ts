@@ -64,7 +64,7 @@ export const apiRoutes: ServerRoute[] = [
     options: {
       validate: {
         query: Joi.object({
-          user_id: Joi.number().integer().required(),
+          user_id: Joi.string().required(),
           reporting_month: Joi.string().required(),
         }),
       },
