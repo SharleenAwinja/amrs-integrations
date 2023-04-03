@@ -23,7 +23,7 @@ export const apiRoutes: ServerRoute[] = [
       validate: {
         payload: Joi.object({
           identifiers: Joi.array().items(Joi.string()).required(),
-          userId: Joi.number().integer().required(),
+          userId: Joi.string().required(),
           reportingMonth: Joi.string().required(),
         }),
       },

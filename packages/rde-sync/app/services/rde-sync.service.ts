@@ -35,7 +35,7 @@ class RdeSyncService {
       let now = moment().tz("Africa/Nairobi");
       let formattedDateTime = now.format("YYYY-MM-DD HH:mm:ss");
 
-      let query = `INSERT INTO rde_sync_queue (user_id, patient_id, date_created, reporting_month, status) VALUES (${userId}, ${patientId}, '${formattedDateTime}', '${reportingMonth}', 'QUEUED')`;
+      let query = `INSERT INTO rde_sync_queue (user_id, patient_id, date_created, reporting_month, status) VALUES ('${userId}', ${patientId}, '${formattedDateTime}', '${reportingMonth}', 'QUEUED')`;
 
       const connection = await ETL_POOL.getConnection();
       const [rows] = await connection.execute(query);
@@ -58,6 +58,7 @@ class RdeSyncService {
           .code(201);
       }
     } catch (error) {
+      console.error(error);
       return h.response(`Internal server error ${error}`).code(500);
     }
   }
