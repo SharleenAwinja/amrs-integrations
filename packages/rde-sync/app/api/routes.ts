@@ -159,8 +159,6 @@ export const apiRoutes: ServerRoute[] = [
     method: "POST",
     path: "/api/rde-sync/post-summary-sync-queue",
     handler: async function (request, h) {
-      console.log("request", request.payload);
-
       const hivSummaryService = new HIVSummaryService();
 
       const response = await hivSummaryService.createSummarySyncQueue(
