@@ -145,11 +145,22 @@ export const apiRoutes: ServerRoute[] = [
         h
       );
     },
+    options: {
+      validate: {
+        payload: Joi.object({
+          patientIds: Joi.array().items(Joi.string()).required(),
+          userId: Joi.string().required(),
+          reportingMonth: Joi.string().required(),
+        }),
+      },
+    },
   },
   {
     method: "POST",
     path: "/api/rde-sync/post-summary-sync-queue",
     handler: async function (request, h) {
+      console.log("request", request.payload);
+
       const hivSummaryService = new HIVSummaryService();
 
       const response = await hivSummaryService.createSummarySyncQueue(
@@ -157,6 +168,13 @@ export const apiRoutes: ServerRoute[] = [
         h
       );
       return response;
+    },
+    options: {
+      validate: {
+        payload: Joi.object({
+          patientIds: Joi.array().items(Joi.string()).required(),
+        }),
+      },
     },
   },
   {
