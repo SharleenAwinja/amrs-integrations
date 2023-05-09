@@ -21,3 +21,7 @@ export interface AffectedRows {
 export interface PatientIds {
   patientIds: string[];
 }
+export interface ResponseObject {
+  affectedRows: number;
+  existingPatients: string[];
+}

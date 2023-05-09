@@ -2,7 +2,7 @@ import { AMRS_POOL, ETL_POOL } from "../db";
 import { ResponseToolkit } from "@hapi/hapi";
 import { RowDataPacket } from "mysql2";
 import { QueuePatientPayload, RDEQueuePayload } from "../models/RequestParams";
-import { AffectedRows, QueueStatus } from "../models/Model";
+import { AffectedRows, QueueStatus, ResponseObject } from "../models/Model";
 
 class RdeSyncService {
   async getPatientIds(identifiers: string[]) {
@@ -23,6 +23,15 @@ class RdeSyncService {
     return result;
   }
 
+  async getIdentifiers(patientId: number) {
+    const query = `SELECT DISTINCT identifier FROM patient_identifier WHERE patient_id = ${patientId}`;
+    const connection = await AMRS_POOL.getConnection();
+    const [result] = await connection.execute(query);
+    connection.release();
+
+    return result as Array<{ identifier: string }>;
+  }
+
   async queueRDEPatients(request: RDEQueuePayload, h: ResponseToolkit) {
     const { identifiers, userId, reportingMonth } = request;
 
@@ -32,35 +41,62 @@ class RdeSyncService {
       const patientId = row.patient_id;
       const connection = await ETL_POOL.getConnection();
 
-      const checkingQuery = `SELECT 1 FROM rde_sync_queue WHERE patient_id = ${patientId} AND reporting_month = ${reportingMonth}`;
-      const [existingRows] = await connection.execute(checkingQuery);
-      console.log("existing", existingRows);
-
-      const moment = require("moment-timezone");
-      let now = moment().tz("Africa/Nairobi");
-      let formattedDateTime = now.format("YYYY-MM-DD HH:mm:ss");
-      // create a function to check if identifiers already exist in rde table, if they exist return a response saying they already exist and which reporting month they are in; check if patient already exists in that reporting month that is being passed
-
-      let query = `INSERT INTO rde_sync_queue (user_id, patient_id, date_created, reporting_month, status) VALUES ('${userId}', ${patientId}, '${formattedDateTime}', '${reportingMonth}', 'QUEUED')`;
-
-      const [rows] = await connection.execute(query);
-      const { affectedRows } = rows as AffectedRows;
+      const checkingPatientQuery = `SELECT COUNT(1) FROM rde_sync_queue WHERE patient_id = ${patientId} AND reporting_month = '${reportingMonth}'`;
+      const [existingRows] = await connection.execute(checkingPatientQuery);
       connection.release();
-      return affectedRows;
+
+      if (Array.isArray(existingRows)) {
+        const [count] = existingRows;
+        const countValue = (count as { "COUNT(1)": number })["COUNT(1)"];
+
+        const returnObject = {
+          patientIdentifier: "",
+          affectedRows: 0,
+        };
+
+        if (countValue) {
+          const result = await this.getIdentifiers(patientId);
+          if (Array.isArray(result)) {
+            const [commonValue] = result.filter((row) =>
+              identifiers.includes(row.identifier)
+            );
+            returnObject.patientIdentifier = commonValue.identifier;
+          }
+          return returnObject;
+        } else {
+          const moment = require("moment-timezone");
+          let now = moment().tz("Africa/Nairobi");
+          let formattedDateTime = now.format("YYYY-MM-DD HH:mm:ss");
+
+          let query = `INSERT INTO rde_sync_queue (user_id, patient_id, date_created, reporting_month, status) VALUES ('${userId}', ${patientId}, '${formattedDateTime}', '${reportingMonth}', 'QUEUED')`;
+
+          const [rows] = await connection.execute(query);
+          const { affectedRows } = rows as AffectedRows;
+          connection.release();
+          returnObject.affectedRows = affectedRows;
+          return returnObject;
+        }
+      }
     };
 
     try {
       if (Array.isArray(rows)) {
-        let totalRows: number = 0;
+        const responseObject: ResponseObject = {
+          affectedRows: 0,
+          existingPatients: [],
+        };
 
         for (const row of rows) {
           const response = await handleRow(row as RowDataPacket);
-          response ? (totalRows += response) : totalRows;
+          if (response?.affectedRows) {
+            responseObject.affectedRows += response.affectedRows;
+          } else if (response?.patientIdentifier) {
+            responseObject.existingPatients.push(response?.patientIdentifier);
+          }
         }
+        console.log("response object", responseObject);
 
-        return h
-          .response({ affectedRows: totalRows } as AffectedRows)
-          .code(201);
+        return h.response(responseObject).code(201);
       }
     } catch (error) {
       console.error(error);
@@ -128,14 +164,10 @@ class RdeSyncService {
     const query = `REPLACE INTO etl.hiv_monthly_report_dataset_frozen (SELECT * from etl.hiv_monthly_report_dataset_v1_2
           WHERE hiv_monthly_report_dataset_v1_2.endDate = '${reportingMonth}' AND hiv_monthly_report_dataset_v1_2.person_id
           IN (${whereQuery.slice(0, -1)}));`;
-    // run this query with details of a patient whose data has already been frozen
-    // idea is to optimize code and ensure that update status function is not called when zero rows are affected
 
     try {
       const connection = await ETL_POOL.getConnection();
       const [rows] = await connection.execute(query);
-      // check if previous query execution was sucessful before updating status  //prevent adding duplicate patients for the same month in rde
-      // ALTER TABLE rde_sync_queue ADD UNIQUE unique_patient_reporting UNIQUE (patient_id, reporting_month);
       await this.updatePatientStatus(patientIds, QueueStatus.FROZEN);
       connection.release();
       return h.response(rows).code(201);
